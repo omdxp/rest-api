@@ -2,62 +2,106 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/mux"
 )
 
-type Article struct {
-	Title   string `json:"Title"`
-	Desc    string `json:"desc"`
-	Content string `json:"content"`
+// mock data
+var books []Book
+
+// book struct
+type Book struct {
+	ID     string  `json:"id"`
+	Isbn   string  `json:"isbn"`
+	Title  string  `json:"title"`
+	Author *Author `json:"author"`
 }
 
-type Articles []Article
+// author struct
+type Author struct {
+	Firstname string `json:"firstname"`
+	Lastname  string `json:"lastname"`
+}
 
-func allArticles(w http.ResponseWriter, r *http.Request) {
-	articles := Articles{
-		Article{Title: "Test Title", Desc: "Test Desc", Content: "Test Content"},
+// get all books
+func getBooks(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(books)
+}
+
+// get single book
+func getBook(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	params := mux.Vars(r)
+	for _, item := range books {
+		if item.ID == params["id"] {
+			json.NewEncoder(w).Encode(item)
+			return
+		}
 	}
-
-	fmt.Println("Endpoint Hit: All Articles Endpoint")
-	json.NewEncoder(w).Encode(articles)
+	json.NewEncoder(w).Encode(&Book{})
 }
 
-func homePage(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Welcome to the HomePage!")
+// create new book
+func createBook(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	var book Book
+	_ = json.NewDecoder(r.Body).Decode(&book)
+	book.ID = strconv.Itoa(rand.Intn(10000000))
+	books = append(books, book)
+	json.NewEncoder(w).Encode(book)
 }
 
-func testPostArticles(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("Endpoint Hit: Test Post Articles Endpoint")
-	fmt.Println("Method:", r.Method)
-	fmt.Println("Path:", r.URL.Path)
-	fmt.Println("Authorization:", r.Header.Get("Authorization"))
-	fmt.Fprintf(w, "Post endpoint hit")
-
-	// Get the request body and decode into struct
-	reqBody := &Article{}
-	err := json.NewDecoder(r.Body).Decode(reqBody)
-	if err != nil {
-		fmt.Println(err)
+// update book
+func updateBook(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	params := mux.Vars(r)
+	for index, item := range books {
+		if item.ID == params["id"] {
+			books = append(books[:index], books[index+1:]...)
+			var book Book
+			_ = json.NewDecoder(r.Body).Decode(&book)
+			book.ID = params["id"]
+			books = append(books, book)
+			json.NewEncoder(w).Encode(book)
+			return
+		}
 	}
-
-	fmt.Println(reqBody.Title)
-	fmt.Println(reqBody.Desc)
-	fmt.Println(reqBody.Content)
+	json.NewEncoder(w).Encode(books)
 }
 
-func handleRequest() {
-	myRouter := mux.NewRouter().StrictSlash(true)
-
-	myRouter.HandleFunc("/", homePage)
-	myRouter.HandleFunc("/articles", allArticles).Methods("GET")
-	myRouter.HandleFunc("/articles", testPostArticles).Methods("POST")
-	log.Fatal(http.ListenAndServe(":8081", myRouter))
+// delete book
+func deleteBook(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	params := mux.Vars(r)
+	for index, item := range books {
+		if item.ID == params["id"] {
+			books = append(books[:index], books[index+1:]...)
+			break
+		}
+	}
+	json.NewEncoder(w).Encode(books)
 }
 
 func main() {
-	handleRequest()
+	// init router
+	r := mux.NewRouter()
+
+	// mock data
+	books = append(books, Book{ID: "1", Isbn: "448743", Title: "Book One", Author: &Author{Firstname: "John", Lastname: "Doe"}})
+	books = append(books, Book{ID: "2", Isbn: "134123", Title: "The fault in our stars", Author: &Author{Firstname: "John", Lastname: "Green"}})
+
+	// route handles / endpoints
+	r.HandleFunc("/books", getBooks).Methods("GET")
+	r.HandleFunc("/books/{id}", getBook).Methods("GET")
+	r.HandleFunc("/books", createBook).Methods("POST")
+	r.HandleFunc("/books/{id}", updateBook).Methods("PUT")
+	r.HandleFunc("/books/{id}", deleteBook).Methods("DELETE")
+
+	// start server
+	log.Fatal(http.ListenAndServe(":8000", r))
 }
