@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+
+	"github.com/gorilla/mux"
 )
 
 type Article struct {
@@ -28,10 +30,32 @@ func homePage(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Welcome to the HomePage!")
 }
 
+func testPostArticles(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("Endpoint Hit: Test Post Articles Endpoint")
+	fmt.Println("Method:", r.Method)
+	fmt.Println("Path:", r.URL.Path)
+	fmt.Println("Authorization:", r.Header.Get("Authorization"))
+	fmt.Fprintf(w, "Post endpoint hit")
+
+	// Get the request body and decode into struct
+	reqBody := &Article{}
+	err := json.NewDecoder(r.Body).Decode(reqBody)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	fmt.Println(reqBody.Title)
+	fmt.Println(reqBody.Desc)
+	fmt.Println(reqBody.Content)
+}
+
 func handleRequest() {
-	http.HandleFunc("/", homePage)
-	http.HandleFunc("/articles", allArticles)
-	log.Fatal(http.ListenAndServe(":8081", nil))
+	myRouter := mux.NewRouter().StrictSlash(true)
+
+	myRouter.HandleFunc("/", homePage)
+	myRouter.HandleFunc("/articles", allArticles).Methods("GET")
+	myRouter.HandleFunc("/articles", testPostArticles).Methods("POST")
+	log.Fatal(http.ListenAndServe(":8081", myRouter))
 }
 
 func main() {
